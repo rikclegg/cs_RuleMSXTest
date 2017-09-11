@@ -46,6 +46,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             try
             {
                 this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
+                this.emsx.start();
             }
             catch (Exception ex)
             {

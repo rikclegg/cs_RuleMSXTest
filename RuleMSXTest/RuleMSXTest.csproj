@@ -33,22 +33,22 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="EasyMKT">
-      <HintPath>..\..\EasyMKT\EasyMKT\bin\Debug\EasyMKT.dll</HintPath>
-    </Reference>
-    <Reference Include="EasyMSX">
-      <HintPath>..\..\emsxapi_cs_EasyMSX\EasyMSX\bin\Debug\EasyMSX.dll</HintPath>
-    </Reference>
-    <Reference Include="RuleMSX">
-      <HintPath>..\..\RuleMSX\RuleMSX\bin\Debug\RuleMSX.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
     <Compile Include="RuleMSXTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="EasyMKT">
+      <HintPath>..\..\cs_EasyMKT\EasyMKT\bin\Debug\EasyMKT.dll</HintPath>
+    </Reference>
+    <Reference Include="EasyMSX">
+      <HintPath>..\..\..\EMSXCodeSamples\C#\EasyMSX\EasyMSX\bin\Debug\EasyMSX.dll</HintPath>
+    </Reference>
+    <Reference Include="RuleMSX">
+      <HintPath>..\..\cs_RuleMSX\RuleMSX\bin\Debug\RuleMSX.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
