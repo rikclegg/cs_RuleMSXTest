@@ -12,32 +12,61 @@ using System;
 using com.bloomberg.samples.rulemsx;
 using static com.bloomberg.samples.rulemsx.RuleMSX;
 using System.Collections.Generic;
+using Request = Bloomberglp.Blpapi.Request;
+using Bloomberglp.Blpapi;
 
 namespace com.bloomberg.samples.rulemsx.test {
 
-    public class RuleMSXTest {
+    public class RuleMSXTest : EasyMSXNotificationHandler
+    {
 
         private RuleMSX rmsx;
         private EasyMSX emsx;
         private EasyMKT emkt;
+        private RuleSet ruleSet;
 
         static void Main(string[] args) {
             System.Console.WriteLine("Bloomberg - RMSX - RuleMSXTest\n");
             RuleMSXTest example = new RuleMSXTest();
-            example.run();
             System.Console.WriteLine("Press any key to terminate...");
             System.Console.ReadLine();
-
         }
 
         public RuleMSXTest() {
 
-            System.Console.WriteLine("RuleMSXTest started...");
+            System.Console.WriteLine("RuleMSXTest starting...");
 
             System.Console.WriteLine("Instantiating RuleMSX...");
             this.rmsx = new RuleMSX();
 
+            // Create new RuleSet
+            this.ruleSet = rmsx.createRuleSet("TestRules");
+
+            Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker(this, "BB"));
+            Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"), new RouteToBroker(this, "DMTB"));
+            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new SendAdditionalSignal("This is IBM!!"));
+
+            //Add new rules for working/filled amount checks
+
+            this.ruleSet.AddRule(ruleIsLNExchange); // Parent is ruleset, so considered an Alpha node
+            this.ruleSet.AddRule(ruleIsUSExchange); // Parent is ruleset, so considered an Alpha node
+            ruleIsUSExchange.AddRule(ruleIsIBM); // Parent is another rule, so considered a Beta node
+
             System.Console.WriteLine("...done.");
+
+            System.Console.WriteLine("Instantiating EasyMKT...");
+            this.emkt = new EasyMKT();
+            System.Console.WriteLine("...done.");
+
+            // Adding subscription fields to EasyMKT
+            emkt.AddField("BID");
+            emkt.AddField("ASK");
+            emkt.AddField("MID");
+            emkt.AddField("LAST_PRICE");
+
+            System.Console.WriteLine("Starting EasyMKT...");
+            emkt.start();
+            System.Console.WriteLine("EasyMKT started.");
 
             System.Console.WriteLine("Instantiating EasyMSX...");
 
@@ -46,6 +75,12 @@ namespace com.bloomberg.samples.rulemsx.test {
             try
             {
                 this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
+                this.emsx.orders.addNotificationHandler(this);
+
+                foreach(Order o in emsx.orders)
+                {
+                    if (o.field("EMSX_STATUS").value() != "EXPIRED") parseOrder(o);
+                }
             }
             catch (Exception ex)
             {
@@ -54,29 +89,27 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             System.Console.WriteLine("...done.");
 
-            System.Console.WriteLine("Instantiating EasyMKT...");
-            this.emkt = new EasyMKT();
-            System.Console.WriteLine("...done.");
+            System.Console.WriteLine("RuleMSXTest running...");
 
         }
 
-        public void run()
+        public void processNotification(EasyMSXNotification notification) {
+
+            if (notification.category==EasyMSXNotification.NotificationCategory.ORDER) {
+                if(notification.type==EasyMSXNotification.NotificationType.INITIALPAINT || notification.type == EasyMSXNotification.NotificationType.NEW)
+                {
+                    parseOrder(notification.getOrder());
+                }
+            }
+        }
+
+        private void parseOrder(Order o)
         {
 
-            System.Console.WriteLine("RuleMSXTest running...");
-
-            emkt.AddField("BID");
-            emkt.AddField("ASK");
-            emkt.AddField("MID");
-            emkt.AddField("LAST_PRICE");
-
-            DataSet rmsxTest;
-
-            foreach (Order o in emsx.orders)
+            if (o.field("EMSX_STATUS").value() != "EXPIRED")
             {
-
                 // Create new DataSet for each order
-                rmsxTest = this.rmsx.createDataSet("RMSXTest" + o.field("EMSX_SEQUENCE").value());
+                DataSet rmsxTest = this.rmsx.createDataSet("RMSXTest" + o.field("EMSX_SEQUENCE").value());
 
                 System.Console.WriteLine("New DataSet created: " + rmsxTest.getName());
 
@@ -100,6 +133,14 @@ namespace com.bloomberg.samples.rulemsx.test {
                 DataPoint ticker = rmsxTest.addDataPoint("Ticker");
                 ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER"), ticker));
                 System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
+
+                DataPoint working = rmsxTest.addDataPoint("Working");
+                working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING"), working));
+                System.Console.WriteLine("New DataPoint added : " + working.GetName());
+
+                DataPoint filled = rmsxTest.addDataPoint("Filled");
+                filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED"), filled));
+                System.Console.WriteLine("New DataPoint added : " + filled.GetName());
 
                 DataPoint isin = rmsxTest.addDataPoint("ISIN");
                 isin.SetDataPointSource(new RefDataDataPoint("ID_ISIN", o.field("EMSX_TICKER").value()));
@@ -125,30 +166,12 @@ namespace com.bloomberg.samples.rulemsx.test {
                 price.AddDependency(margin);
                 price.AddDependency(lastPrice);
                 System.Console.WriteLine("New DataPoint added : " + price.GetName());
+
+                this.ruleSet.execute(rmsxTest);
+
             }
-
-            System.Console.WriteLine("Starting EasyMKT...");
-            emkt.start();
-            System.Console.WriteLine("EasyMKT started.");
-
-            // Create new RuleSet
-            RuleSet rset = rmsx.createRuleSet("TestRules");
-
-            Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker("BB"));
-            Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"), new RouteToBroker("DMTB"));
-            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new SendAdditionalSignal("This is IBM!!"));
-
-            rset.AddRule(ruleIsLNExchange); // Parent is ruleset, so considered an Alpha node
-            rset.AddRule(ruleIsUSExchange); // Parent is ruleset, so considered an Alpha node
-            ruleIsUSExchange.AddRule(ruleIsIBM); // Parent is another rule, so considered a Beta node
-
-            // Iterate all datasets, submiting them to the ruleset
-            foreach (DataSet ds in rmsx.getDataSets()) {
-                rset.execute(ds);
-            }
-
-            return;
         }
+
 
         class EMSXFieldDataPoint : DataPointSource, EasyMSXNotificationHandler {
 
@@ -340,17 +363,48 @@ namespace com.bloomberg.samples.rulemsx.test {
             }
         }
     
-        class RouteToBroker : RuleAction {
+        class RouteToBroker : RuleAction, MessageHandler {
 
             private string brokerCode;
+            private RuleMSXTest ruleMSXTest;
 
-            internal RouteToBroker(string brokerCode) {
+            internal RouteToBroker(RuleMSXTest ruleMSXTest, string brokerCode) {
+                this.ruleMSXTest = ruleMSXTest;
                 this.brokerCode = brokerCode;
             }
 
             public void Execute(DataSet dataSet) {
                 // create route instruction for the order based only on data from the dataset
                 System.Console.WriteLine("Created route to broker '" + this.brokerCode + "' for DataSet: " + dataSet.getName());
+
+                // Get the order
+                Orders os = this.ruleMSXTest.emsx.orders;
+                DataPoint dp = dataSet.getDataPoint("OrderNo");
+                DataPointSource dps = dp.GetSource();
+                string ordno = dps.GetValue().ToString();
+                Order o = os.getBySequenceNo(Convert.ToInt32(ordno));
+
+                if (o != null) {
+
+                    Request req = this.ruleMSXTest.emsx.createRequest("RouteEx");
+
+                    req.Set("EMSX_SEQUENCE", o.field("EMSX_SEQUENCE").value()); 
+                    req.Set("EMSX_AMOUNT", o.field("EMSX_AMOUNT").value());
+                    req.Set("EMSX_BROKER", "BMTB");
+                    req.Set("EMSX_HAND_INSTRUCTION", "ANY");
+                    req.Set("EMSX_ORDER_TYPE", o.field("EMSX_ORDER_TYPE").value());
+                    req.Set("EMSX_TICKER", o.field("EMSX_TICKER").value());
+                    req.Set("EMSX_TIF", o.field("EMSX_TIF").value());
+
+                    System.Console.WriteLine("Sending request: " + req.ToString());
+                    
+                    this.ruleMSXTest.emsx.sendRequest(req, this);
+                }
+            }
+
+            public void processMessage(Message message)
+            {
+                System.Console.WriteLine("Route response: " + message);
             }
         }
     

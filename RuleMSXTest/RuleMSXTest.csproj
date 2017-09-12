@@ -33,6 +33,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Bloomberglp.Blpapi, Version=3.8.9.2, Culture=neutral, PublicKeyToken=ec3efa8c033c2bc5, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\blp\DAPI\APIv3\DotnetAPI\v3.8.9.2\lib\Bloomberglp.Blpapi.dll</HintPath>
+    </Reference>
     <Reference Include="EasyMKT">
       <HintPath>..\..\EasyMKT\EasyMKT\bin\Debug\EasyMKT.dll</HintPath>
     </Reference>
