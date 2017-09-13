@@ -45,6 +45,7 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             Rule ruleIsNotExpired = new Rule("IsNotExpired", new StringInequalityRule("OrderStatus", "EXPIRED"));
             Rule ruleIsExpired = new Rule("IsExpired", new StringEqualityRule("OrderStatus", "EXPIRED"), new SendAdditionalSignal("Ignoring Order - EXPIRED"));
+            Rule ruleNeedsRouting = new Rule("NeedsRouting", new NeedsRoutingRule());
             Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker(this, "BB"));
             Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"));
             Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new RouteToBroker(this, "BMTB"));
@@ -57,8 +58,9 @@ namespace com.bloomberg.samples.rulemsx.test {
             //Add new rules for working/filled amount checks
             this.ruleSet.AddRule(ruleIsNotExpired);
             this.ruleSet.AddRule(ruleIsExpired);
-            ruleIsNotExpired.AddRule(ruleIsLNExchange);
-            ruleIsNotExpired.AddRule(ruleIsUSExchange);
+            ruleIsNotExpired.AddRule(ruleNeedsRouting);
+            ruleNeedsRouting.AddRule(ruleIsLNExchange);
+            ruleNeedsRouting.AddRule(ruleIsUSExchange);
             ruleIsUSExchange.AddRule(ruleIsIBM);
             ruleIsUSExchange.AddRule(ruleIsMSFT);
 
@@ -386,6 +388,31 @@ namespace com.bloomberg.samples.rulemsx.test {
             public List<string> GetDependencies() {
                 return new List<string> { this.dataPointName };
             }
+        }
+
+        class NeedsRoutingRule: RuleEvaluator {
+
+            internal NeedsRoutingRule() {}
+
+            public bool Evaluate(DataSet dataSet)
+            {
+                int workingAmount = Convert.ToInt32(dataSet.getDataPoint("Working").GetSource().GetValue().ToString());
+                int filledAmount = Convert.ToInt32(dataSet.getDataPoint("Filled").GetSource().GetValue().ToString());
+                int amount = Convert.ToInt32(dataSet.getDataPoint("Amount").GetSource().GetValue().ToString());
+                string status = dataSet.getDataPoint("OrderStatus").GetSource().GetValue().ToString();
+                
+                if(status.Equals("NEW") || status.Equals("INIT_PAINT") || status.Equals("WORKING") || status.Equals("ASSIGN"))
+                {
+                    if (workingAmount + filledAmount < amount) return true;
+                }
+                return false;
+            }
+
+            public List<string> GetDependencies()
+            {
+                return new List<string> {"Working","Filled","Amount","OrderStatus"};
+            }
+
         }
 
         class RouteToBroker : RuleAction, MessageHandler {
