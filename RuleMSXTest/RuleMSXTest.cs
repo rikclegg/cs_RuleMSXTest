@@ -42,15 +42,19 @@ namespace com.bloomberg.samples.rulemsx.test {
             // Create new RuleSet
             this.ruleSet = rmsx.createRuleSet("TestRules");
 
+            Rule ruleIsNotExpired = new Rule("IsNotExpired", new StringInequalityRule("OrderStatus", "EXPIRED"));
+            Rule ruleIsExpired = new Rule("IsExpired", new StringEqualityRule("OrderStatus", "EXPIRED"), new SendAdditionalSignal("Ignoring Order - EXPIRED"));
             Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker(this, "BB"));
             Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"), new RouteToBroker(this, "DMTB"));
             Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new SendAdditionalSignal("This is IBM!!"));
 
             //Add new rules for working/filled amount checks
 
-            this.ruleSet.AddRule(ruleIsLNExchange); // Parent is ruleset, so considered an Alpha node
-            this.ruleSet.AddRule(ruleIsUSExchange); // Parent is ruleset, so considered an Alpha node
-            ruleIsUSExchange.AddRule(ruleIsIBM); // Parent is another rule, so considered a Beta node
+            this.ruleSet.AddRule(ruleIsNotExpired);
+            this.ruleSet.AddRule(ruleIsExpired);
+            ruleIsNotExpired.AddRule(ruleIsLNExchange);
+            ruleIsNotExpired.AddRule(ruleIsUSExchange); 
+            ruleIsUSExchange.AddRule(ruleIsIBM); 
 
             System.Console.WriteLine("...done.");
 
@@ -79,7 +83,7 @@ namespace com.bloomberg.samples.rulemsx.test {
 
                 foreach(Order o in emsx.orders)
                 {
-                    if (o.field("EMSX_STATUS").value() != "EXPIRED") parseOrder(o);
+                    parseOrder(o);
                 }
             }
             catch (Exception ex)
@@ -106,70 +110,72 @@ namespace com.bloomberg.samples.rulemsx.test {
         private void parseOrder(Order o)
         {
 
-            if (o.field("EMSX_STATUS").value() != "EXPIRED")
+            // Create new DataSet for each order
+            DataSet rmsxTest = this.rmsx.createDataSet("RMSXTest" + o.field("EMSX_SEQUENCE").value());
+
+            System.Console.WriteLine("New DataSet created: " + rmsxTest.getName());
+
+            // Create new data point for each required field
+            DataPoint orderStatus = rmsxTest.addDataPoint("OrderStatus");
+            orderStatus.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_STATUS"), orderStatus));
+            System.Console.WriteLine("New DataPoint added : " + orderStatus.GetName());
+
+            // Create new data point for each required field
+            DataPoint orderNo = rmsxTest.addDataPoint("OrderNo");
+            orderNo.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_SEQUENCE"), orderNo));
+            System.Console.WriteLine("New DataPoint added : " + orderNo.GetName());
+
+            DataPoint assetClass = rmsxTest.addDataPoint("AssetClass");
+            assetClass.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_ASSET_CLASS"), assetClass));
+            System.Console.WriteLine("New DataPoint added : " + assetClass.GetName());
+
+            DataPoint amount = rmsxTest.addDataPoint("Amount");
+            amount.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_AMOUNT"), amount));
+            System.Console.WriteLine("New DataPoint added : " + amount.GetName());
+
+            DataPoint exchange = rmsxTest.addDataPoint("Exchange");
+            exchange.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_EXCHANGE"), exchange));
+            System.Console.WriteLine("New DataPoint added : " + exchange.GetName());
+
+            DataPoint ticker = rmsxTest.addDataPoint("Ticker");
+            ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER"), ticker));
+            System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
+
+            DataPoint working = rmsxTest.addDataPoint("Working");
+            working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING"), working));
+            System.Console.WriteLine("New DataPoint added : " + working.GetName());
+
+            DataPoint filled = rmsxTest.addDataPoint("Filled");
+            filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED"), filled));
+            System.Console.WriteLine("New DataPoint added : " + filled.GetName());
+
+            DataPoint isin = rmsxTest.addDataPoint("ISIN");
+            isin.SetDataPointSource(new RefDataDataPoint("ID_ISIN", o.field("EMSX_TICKER").value()));
+            System.Console.WriteLine("New DataPoint added : " + isin.GetName());
+
+            System.Console.WriteLine("Adding order secuity to EasyMKT...");
+            Security sec = emkt.securities.Get(o.field("EMSX_TICKER").value());
+            if (sec == null)
             {
-                // Create new DataSet for each order
-                DataSet rmsxTest = this.rmsx.createDataSet("RMSXTest" + o.field("EMSX_SEQUENCE").value());
-
-                System.Console.WriteLine("New DataSet created: " + rmsxTest.getName());
-
-                // Create new data point for each required field
-                DataPoint orderNo = rmsxTest.addDataPoint("OrderNo");
-                orderNo.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_SEQUENCE"), orderNo));
-                System.Console.WriteLine("New DataPoint added : " + orderNo.GetName());
-
-                DataPoint assetClass = rmsxTest.addDataPoint("AssetClass");
-                assetClass.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_ASSET_CLASS"), assetClass));
-                System.Console.WriteLine("New DataPoint added : " + assetClass.GetName());
-
-                DataPoint amount = rmsxTest.addDataPoint("Amount");
-                amount.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_AMOUNT"), amount));
-                System.Console.WriteLine("New DataPoint added : " + amount.GetName());
-
-                DataPoint exchange = rmsxTest.addDataPoint("Exchange");
-                exchange.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_EXCHANGE"), exchange));
-                System.Console.WriteLine("New DataPoint added : " + exchange.GetName());
-
-                DataPoint ticker = rmsxTest.addDataPoint("Ticker");
-                ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER"), ticker));
-                System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
-
-                DataPoint working = rmsxTest.addDataPoint("Working");
-                working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING"), working));
-                System.Console.WriteLine("New DataPoint added : " + working.GetName());
-
-                DataPoint filled = rmsxTest.addDataPoint("Filled");
-                filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED"), filled));
-                System.Console.WriteLine("New DataPoint added : " + filled.GetName());
-
-                DataPoint isin = rmsxTest.addDataPoint("ISIN");
-                isin.SetDataPointSource(new RefDataDataPoint("ID_ISIN", o.field("EMSX_TICKER").value()));
-                System.Console.WriteLine("New DataPoint added : " + isin.GetName());
-
-                System.Console.WriteLine("Adding order secuity to EasyMKT...");
-                Security sec = emkt.securities.Get(o.field("EMSX_TICKER").value());
-                if (sec == null)
-                {
-                    sec = emkt.AddSecurity(o.field("EMSX_TICKER").value());
-                }
-
-                DataPoint lastPrice = rmsxTest.addDataPoint("LastPrice");
-                lastPrice.SetDataPointSource(new MktDataDataPoint("LAST_PRICE", sec));
-                System.Console.WriteLine("New DataPoint added : " + lastPrice.GetName());
-
-                DataPoint margin = rmsxTest.addDataPoint("Margin");
-                margin.SetDataPointSource(new CustomNumericDataPoint(2.0f));
-                System.Console.WriteLine("New DataPoint added : " + margin.GetName());
-
-                DataPoint price = rmsxTest.addDataPoint("NewPrice");
-                price.SetDataPointSource(new CustomCompoundDataPoint(margin, lastPrice));
-                price.AddDependency(margin);
-                price.AddDependency(lastPrice);
-                System.Console.WriteLine("New DataPoint added : " + price.GetName());
-
-                this.ruleSet.execute(rmsxTest);
-
+                sec = emkt.AddSecurity(o.field("EMSX_TICKER").value());
             }
+
+            DataPoint lastPrice = rmsxTest.addDataPoint("LastPrice");
+            lastPrice.SetDataPointSource(new MktDataDataPoint("LAST_PRICE", sec));
+            System.Console.WriteLine("New DataPoint added : " + lastPrice.GetName());
+
+            DataPoint margin = rmsxTest.addDataPoint("Margin");
+            margin.SetDataPointSource(new CustomNumericDataPoint(2.0f));
+            System.Console.WriteLine("New DataPoint added : " + margin.GetName());
+
+            DataPoint price = rmsxTest.addDataPoint("NewPrice");
+            price.SetDataPointSource(new CustomCompoundDataPoint(margin, lastPrice));
+            price.AddDependency(margin);
+            price.AddDependency(lastPrice);
+            System.Console.WriteLine("New DataPoint added : " + price.GetName());
+
+            this.ruleSet.execute(rmsxTest);
+
         }
 
 
@@ -198,7 +204,7 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.isStale = (state == DataPointState.STALE);
             }
 
-            public void ProcessNotification(EasyMSXNotification notification) {
+            public void processNotification(EasyMSXNotification notification) {
 
                 System.Console.WriteLine("Notification event: " + this.source.name() + " on " + dataPoint.GetDataSet().getName());
 
@@ -215,10 +221,6 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.isStale = true;
             }
 
-            public void processNotification(EasyMSXNotification notification)
-            {
-                throw new NotImplementedException();
-            }
         }
     
         class RefDataDataPoint : DataPointSource {
@@ -362,7 +364,30 @@ namespace com.bloomberg.samples.rulemsx.test {
                 return new List<string> { this.dataPointName };
             }
         }
-    
+
+        class StringInequalityRule : RuleEvaluator
+        {
+
+            string dataPointName;
+            string match;
+
+            internal StringInequalityRule(string dataPointName, string match)
+            {
+                this.dataPointName = dataPointName;
+                this.match = match;
+            }
+
+            public bool Evaluate(DataSet dataSet)
+            {
+                return !dataSet.getDataPoint(this.dataPointName).GetSource().GetValue().Equals(this.match);
+            }
+
+            public List<string> GetDependencies()
+            {
+                return new List<string> { this.dataPointName };
+            }
+        }
+
         class RouteToBroker : RuleAction, MessageHandler {
 
             private string brokerCode;
