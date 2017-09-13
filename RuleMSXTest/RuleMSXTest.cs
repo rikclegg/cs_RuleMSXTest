@@ -46,15 +46,21 @@ namespace com.bloomberg.samples.rulemsx.test {
             Rule ruleIsNotExpired = new Rule("IsNotExpired", new StringInequalityRule("OrderStatus", "EXPIRED"));
             Rule ruleIsExpired = new Rule("IsExpired", new StringEqualityRule("OrderStatus", "EXPIRED"), new SendAdditionalSignal("Ignoring Order - EXPIRED"));
             Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker(this, "BB"));
-            Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"), new RouteToBroker(this, "DMTB"));
-            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new SendAdditionalSignal("This is IBM!!"));
-            
+            Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"));
+            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new RouteToBroker(this, "BMTB"));
+            ruleIsIBM.AddAction(new SendAdditionalSignal("This is IBM!!"));
+            Rule ruleIsMSFT = new Rule("IsMSFT", new StringEqualityRule("Ticker", "MSFT US Equity"), new SendAdditionalSignal("Not Routing as would be rejected"));
+
+            // Maybe add code so that rather than RouteToBroker("BB") we create a new datapoint "TargetBroker", set it's value to BB.
+            // Then add a new rule that checks if there are available shares. if true, then action is route to targetbroker which depends on target broker
+
             //Add new rules for working/filled amount checks
             this.ruleSet.AddRule(ruleIsNotExpired);
             this.ruleSet.AddRule(ruleIsExpired);
             ruleIsNotExpired.AddRule(ruleIsLNExchange);
             ruleIsNotExpired.AddRule(ruleIsUSExchange);
             ruleIsUSExchange.AddRule(ruleIsIBM);
+            ruleIsUSExchange.AddRule(ruleIsMSFT);
 
             System.Console.WriteLine("...done.");
             System.Console.WriteLine("Instantiating EasyMKT...");
@@ -79,6 +85,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             {
                 this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
                 this.emsx.orders.addNotificationHandler(this);
+                foreach (Order o in this.emsx.orders) parseOrder(o);
             }
             catch (Exception ex)
             {
@@ -86,62 +93,63 @@ namespace com.bloomberg.samples.rulemsx.test {
             }
             System.Console.WriteLine("...done.");
             System.Console.WriteLine("RuleMSXTest running...");
+
         }
 
         public void processNotification(EasyMSXNotification notification) {
 
             if (notification.category == EasyMSXNotification.NotificationCategory.ORDER) {
-                if (notification.type == EasyMSXNotification.NotificationType.INITIALPAINT || notification.type == EasyMSXNotification.NotificationType.NEW) {
-                    parseOrder(notification.getOrder());
-                }
+                parseOrder(notification.getOrder());
             }
         }
 
         private void parseOrder(Order o) {
 
+            bool show = false;
+
             // Create new DataSet for each order
             DataSet rmsxTest = this.rmsx.createDataSet("RMSXTest" + o.field("EMSX_SEQUENCE").value());
-            System.Console.WriteLine("New DataSet created: " + rmsxTest.getName());
+            if(show) System.Console.WriteLine("New DataSet created: " + rmsxTest.getName());
 
             // Create new data point for each required field
 
             DataPoint orderStatus = rmsxTest.addDataPoint("OrderStatus");
             orderStatus.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_STATUS"), orderStatus));
-            System.Console.WriteLine("New DataPoint added : " + orderStatus.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + orderStatus.GetName());
 
             DataPoint orderNo = rmsxTest.addDataPoint("OrderNo");
             orderNo.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_SEQUENCE"), orderNo));
-            System.Console.WriteLine("New DataPoint added : " + orderNo.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + orderNo.GetName());
 
             DataPoint assetClass = rmsxTest.addDataPoint("AssetClass");
             assetClass.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_ASSET_CLASS"), assetClass));
-            System.Console.WriteLine("New DataPoint added : " + assetClass.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + assetClass.GetName());
 
             DataPoint amount = rmsxTest.addDataPoint("Amount");
             amount.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_AMOUNT"), amount));
-            System.Console.WriteLine("New DataPoint added : " + amount.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + amount.GetName());
 
             DataPoint exchange = rmsxTest.addDataPoint("Exchange");
             exchange.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_EXCHANGE"), exchange));
-            System.Console.WriteLine("New DataPoint added : " + exchange.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + exchange.GetName());
 
             DataPoint ticker = rmsxTest.addDataPoint("Ticker");
             ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER"), ticker));
-            System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
 
             DataPoint working = rmsxTest.addDataPoint("Working");
             working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING"), working));
-            System.Console.WriteLine("New DataPoint added : " + working.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + working.GetName());
 
             DataPoint filled = rmsxTest.addDataPoint("Filled");
             filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED"), filled));
-            System.Console.WriteLine("New DataPoint added : " + filled.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + filled.GetName());
 
             DataPoint isin = rmsxTest.addDataPoint("ISIN");
             isin.SetDataPointSource(new RefDataDataPoint("ID_ISIN", o.field("EMSX_TICKER").value()));
-            System.Console.WriteLine("New DataPoint added : " + isin.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + isin.GetName());
 
-            System.Console.WriteLine("Adding order secuity to EasyMKT...");
+            if (show) System.Console.WriteLine("Adding order secuity to EasyMKT...");
             Security sec = emkt.securities.Get(o.field("EMSX_TICKER").value());
 
             if (sec == null)
@@ -151,17 +159,17 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             DataPoint lastPrice = rmsxTest.addDataPoint("LastPrice");
             lastPrice.SetDataPointSource(new MktDataDataPoint("LAST_PRICE", sec));
-            System.Console.WriteLine("New DataPoint added : " + lastPrice.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + lastPrice.GetName());
 
             DataPoint margin = rmsxTest.addDataPoint("Margin");
             margin.SetDataPointSource(new CustomNumericDataPoint(2.0f));
-            System.Console.WriteLine("New DataPoint added : " + margin.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + margin.GetName());
 
             DataPoint price = rmsxTest.addDataPoint("NewPrice");
             price.SetDataPointSource(new CustomCompoundDataPoint(margin, lastPrice));
             price.AddDependency(margin);
             price.AddDependency(lastPrice);
-            System.Console.WriteLine("New DataPoint added : " + price.GetName());
+            if (show) System.Console.WriteLine("New DataPoint added : " + price.GetName());
 
             this.ruleSet.execute(rmsxTest);
         }
@@ -350,7 +358,10 @@ namespace com.bloomberg.samples.rulemsx.test {
             }
 
             public bool Evaluate(DataSet dataSet) {
-                return dataSet.getDataPoint(this.dataPointName).GetSource().GetValue().Equals(this.match);
+                DataPoint dp = dataSet.getDataPoint(this.dataPointName);
+                DataPointSource dps = dp.GetSource();
+                string val = dps.GetValue().ToString();
+                return val.Equals(this.match);
             }
 
             public List<string> GetDependencies() {
@@ -403,7 +414,7 @@ namespace com.bloomberg.samples.rulemsx.test {
                     Request req = this.ruleMSXTest.emsx.createRequest("RouteEx");
                     req.Set("EMSX_SEQUENCE", o.field("EMSX_SEQUENCE").value());
                     req.Set("EMSX_AMOUNT", o.field("EMSX_AMOUNT").value());
-                    req.Set("EMSX_BROKER", "BMTB");
+                    req.Set("EMSX_BROKER", brokerCode);
                     req.Set("EMSX_HAND_INSTRUCTION", "ANY");
                     req.Set("EMSX_ORDER_TYPE", o.field("EMSX_ORDER_TYPE").value());
                     req.Set("EMSX_TICKER", o.field("EMSX_TICKER").value());
