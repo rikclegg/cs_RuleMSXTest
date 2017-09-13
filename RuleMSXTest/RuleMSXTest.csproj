@@ -40,14 +40,17 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Bloomberglp.Blpapi">
+      <HintPath>..\..\..\..\..\..\blp\DAPI\APIv3\DotnetAPI\v3.8.9.2\lib\Bloomberglp.Blpapi.dll</HintPath>
+    </Reference>
     <Reference Include="EasyMKT">
-      <HintPath>..\..\cs_EasyMKT\EasyMKT\bin\Debug\EasyMKT.dll</HintPath>
+      <HintPath>..\..\EasyMKT\EasyMKT\bin\Debug\EasyMKT.dll</HintPath>
     </Reference>
     <Reference Include="EasyMSX">
-      <HintPath>..\..\..\EMSXCodeSamples\C#\EasyMSX\EasyMSX\bin\Debug\EasyMSX.dll</HintPath>
+      <HintPath>..\..\emsxapi_cs_EasyMSX\EasyMSX\bin\Debug\EasyMSX.dll</HintPath>
     </Reference>
     <Reference Include="RuleMSX">
-      <HintPath>..\..\cs_RuleMSX\RuleMSX\bin\Debug\RuleMSX.dll</HintPath>
+      <HintPath>..\..\RuleMSX\RuleMSX\bin\Debug\RuleMSX.dll</HintPath>
     </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
