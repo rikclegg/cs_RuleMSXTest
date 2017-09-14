@@ -116,35 +116,35 @@ namespace com.bloomberg.samples.rulemsx.test {
             // Create new data point for each required field
 
             DataPoint orderStatus = rmsxTest.addDataPoint("OrderStatus");
-            orderStatus.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_STATUS"), orderStatus));
+            orderStatus.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_STATUS")));
             if (show) System.Console.WriteLine("New DataPoint added : " + orderStatus.GetName());
 
             DataPoint orderNo = rmsxTest.addDataPoint("OrderNo");
-            orderNo.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_SEQUENCE"), orderNo));
+            orderNo.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_SEQUENCE")));
             if (show) System.Console.WriteLine("New DataPoint added : " + orderNo.GetName());
 
             DataPoint assetClass = rmsxTest.addDataPoint("AssetClass");
-            assetClass.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_ASSET_CLASS"), assetClass));
+            assetClass.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_ASSET_CLASS")));
             if (show) System.Console.WriteLine("New DataPoint added : " + assetClass.GetName());
 
             DataPoint amount = rmsxTest.addDataPoint("Amount");
-            amount.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_AMOUNT"), amount));
+            amount.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_AMOUNT")));
             if (show) System.Console.WriteLine("New DataPoint added : " + amount.GetName());
 
             DataPoint exchange = rmsxTest.addDataPoint("Exchange");
-            exchange.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_EXCHANGE"), exchange));
+            exchange.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_EXCHANGE")));
             if (show) System.Console.WriteLine("New DataPoint added : " + exchange.GetName());
 
             DataPoint ticker = rmsxTest.addDataPoint("Ticker");
-            ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER"), ticker));
+            ticker.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_TICKER")));
             if (show) System.Console.WriteLine("New DataPoint added : " + ticker.GetName());
 
             DataPoint working = rmsxTest.addDataPoint("Working");
-            working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING"), working));
+            working.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_WORKING")));
             if (show) System.Console.WriteLine("New DataPoint added : " + working.GetName());
 
             DataPoint filled = rmsxTest.addDataPoint("Filled");
-            filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED"), filled));
+            filled.SetDataPointSource(new EMSXFieldDataPoint(o.field("EMSX_FILLED")));
             if (show) System.Console.WriteLine("New DataPoint added : " + filled.GetName());
 
             DataPoint isin = rmsxTest.addDataPoint("ISIN");
@@ -180,32 +180,19 @@ namespace com.bloomberg.samples.rulemsx.test {
         class EMSXFieldDataPoint : DataPointSource, EasyMSXNotificationHandler {
 
             private EMSXField source;
-            private bool isStale = true;
-            private DataPoint dataPoint;
 
-            internal EMSXFieldDataPoint(EMSXField source, DataPoint dataPoint) {
+            internal EMSXFieldDataPoint(EMSXField source) {
                 this.source = source;
-                this.dataPoint = dataPoint;
                 source.addNotificationHandler(this);
             }
-
-            public Object GetValue() {
+            public override object GetValue()
+            {
                 return this.source.value().ToString();
-            }
-
-            public DataPointState GetState() {
-
-                if (this.isStale) return DataPointState.STALE;
-                else return DataPointState.CURRENT;
-            }
-
-            public void SetState(DataPointState state) {
-                this.isStale = (state == DataPointState.STALE);
             }
 
             public void processNotification(EasyMSXNotification notification) {
 
-                System.Console.WriteLine("Notification event: " + this.source.name() + " on " + dataPoint.GetDataSet().getName());
+                System.Console.WriteLine("Notification event: " + this.source.name() + " on " + getDataPoint().GetDataSet().getName());
 
                 try {
                     //System.Console.WriteLine("Category: " + notification.category.ToString());
@@ -219,8 +206,9 @@ namespace com.bloomberg.samples.rulemsx.test {
                     System.Console.WriteLine("Failed!!: " + ex.ToString());
                 }
 
-                this.isStale = true;
+                this.SetStale();
             }
+
         }
 
         class RefDataDataPoint : DataPointSource {
@@ -236,23 +224,11 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.value = "";
             }
 
-            public Object GetValue() {
+            public override object GetValue() {
 
-                if (isStale) {
-                    // make ref data call to get the field value for supplied ticker
-                    this.SetState(DataPointState.CURRENT);
-                }
-                return value;
-            }
-
-            public DataPointState GetState() {
-
-                if (this.isStale) return DataPointState.STALE;
-                else return DataPointState.CURRENT;
-            }
-
-            public void SetState(DataPointState state) {
-                this.isStale = (state == DataPointState.STALE);
+                // make ref data call to get the field value for supplied ticker
+                this.SetStale();
+                return "value";
             }
 
         }
@@ -262,7 +238,6 @@ namespace com.bloomberg.samples.rulemsx.test {
             private string fieldName;
             private Security security;
             private string value;
-            private bool isStale = true;
 
             internal MktDataDataPoint(String fieldName, Security security) {
                 this.fieldName = fieldName;
@@ -270,17 +245,8 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.security.field(this.fieldName).AddNotificationHandler(this);
             }
 
-            public Object GetValue() {
+            public override object GetValue() {
                 return value;
-            }
-
-            public DataPointState GetState() {
-                if (this.isStale) return DataPointState.STALE;
-                else return DataPointState.CURRENT;
-            }
-
-            public void SetState(DataPointState state) {
-                this.isStale = (state == DataPointState.STALE);
             }
 
             public void ProcessNotification(EasyMKTNotification notification) {
@@ -289,7 +255,7 @@ namespace com.bloomberg.samples.rulemsx.test {
                     this.value = notification.GetFieldChanges()[0].newValue;
                     System.Console.WriteLine("Update for " + this.security.GetName() + ": " + this.fieldName + "=" + this.value);
                 }
-                this.SetState(DataPointState.STALE);
+                this.SetStale();
             }
 
         }
@@ -297,25 +263,15 @@ namespace com.bloomberg.samples.rulemsx.test {
         class CustomNumericDataPoint : DataPointSource {
 
             private float value;
-            private bool isStale = true;
 
             internal CustomNumericDataPoint(float value) {
                 this.value = value;
-                this.isStale = false;
             }
 
-            public Object GetValue() {
+            public override object GetValue() {
                 return value;
             }
 
-            public DataPointState GetState() {
-                if (this.isStale) return DataPointState.STALE;
-                else return DataPointState.CURRENT;
-            }
-
-            public void SetState(DataPointState state) {
-                this.isStale = (state == DataPointState.STALE);
-            }
         }
 
         class CustomCompoundDataPoint : DataPointSource {
@@ -330,7 +286,7 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.lastPrice = lastPrice;
             }
 
-            public Object GetValue() {
+            public override object GetValue() {
 
                 if (this.isStale) {
                     this.value = (float)margin.GetSource().GetValue() + (float)lastPrice.GetSource().GetValue();
@@ -339,14 +295,6 @@ namespace com.bloomberg.samples.rulemsx.test {
                 return value;
             }
 
-            public DataPointState GetState() {
-                if (this.isStale) return DataPointState.STALE;
-                else return DataPointState.CURRENT;
-            }
-
-            public void SetState(DataPointState state) {
-                this.isStale = (state == DataPointState.STALE);
-            }
         }
 
         class StringEqualityRule : RuleEvaluator {
@@ -356,19 +304,17 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             internal StringEqualityRule(string dataPointName, string match) {
                 this.dataPointName = dataPointName;
+                this.addDependantDataPointName(dataPointName);
                 this.match = match;
             }
 
-            public bool Evaluate(DataSet dataSet) {
+            public override bool Evaluate(DataSet dataSet) {
                 DataPoint dp = dataSet.getDataPoint(this.dataPointName);
                 DataPointSource dps = dp.GetSource();
                 string val = dps.GetValue().ToString();
                 return val.Equals(this.match);
             }
 
-            public List<string> GetDependencies() {
-                return new List<string> { this.dataPointName };
-            }
         }
 
         class StringInequalityRule : RuleEvaluator {
@@ -378,23 +324,21 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             internal StringInequalityRule(string dataPointName, string match) {
                 this.dataPointName = dataPointName;
+                this.addDependantDataPointName(dataPointName);
                 this.match = match;
             }
 
-            public bool Evaluate(DataSet dataSet) {
+            public override bool Evaluate(DataSet dataSet) {
                 return !dataSet.getDataPoint(this.dataPointName).GetSource().GetValue().Equals(this.match);
             }
 
-            public List<string> GetDependencies() {
-                return new List<string> { this.dataPointName };
-            }
         }
 
         class NeedsRoutingRule: RuleEvaluator {
 
             internal NeedsRoutingRule() {}
 
-            public bool Evaluate(DataSet dataSet)
+            public override bool Evaluate(DataSet dataSet)
             {
                 int workingAmount = Convert.ToInt32(dataSet.getDataPoint("Working").GetSource().GetValue().ToString());
                 int filledAmount = Convert.ToInt32(dataSet.getDataPoint("Filled").GetSource().GetValue().ToString());
@@ -407,12 +351,6 @@ namespace com.bloomberg.samples.rulemsx.test {
                 }
                 return false;
             }
-
-            public List<string> GetDependencies()
-            {
-                return new List<string> {"Working","Filled","Amount","OrderStatus"};
-            }
-
         }
 
         class RouteToBroker : RuleAction, MessageHandler {
