@@ -9,10 +9,11 @@ using EasyMKTNotificationHandler = com.bloomberg.mktdata.samples.NotificationHan
 using EasyMKTNotification = com.bloomberg.mktdata.samples.Notification;
 using MessageHandler = com.bloomberg.emsx.samples.MessageHandler;
 using System;
-using static com.bloomberg.samples.rulemsx.RuleMSX;
 using System.Collections.Generic;
 using Request = Bloomberglp.Blpapi.Request;
 using Bloomberglp.Blpapi;
+using com.bloomberg.samples.rulemsx;
+using LogRmsx = com.bloomberg.samples.rulemsx.Log;
 
 namespace com.bloomberg.samples.rulemsx.test {
 
@@ -31,12 +32,15 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             System.Console.WriteLine("Press any key to terminate...");
             System.Console.ReadLine();
+            example.Stop();
         }
 
         public RuleMSXTest() {
 
             System.Console.WriteLine("RuleMSXTest starting...");
             System.Console.WriteLine("Instantiating RuleMSX...");
+
+            LogRmsx.logLevel = LogRmsx.LogLevels.DETAILED;
 
             this.rmsx = new RuleMSX();
             
@@ -51,6 +55,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new RouteToBroker(this, "BMTB"));
             ruleIsIBM.AddAction(new SendAdditionalSignal("This is IBM!!"));
             Rule ruleIsMSFT = new Rule("IsMSFT", new StringEqualityRule("Ticker", "MSFT US Equity"), new SendAdditionalSignal("Not Routing as would be rejected"));
+            Rule ruleIsFilled500 = new Rule("IsFilled500", new IsFilled500Rule(), new SendAdditionalSignal("Order is filled to 500 or more."));
 
             // Maybe add code so that rather than RouteToBroker("BB") we create a new datapoint "TargetBroker", set it's value to BB.
             // Then add a new rule that checks if there are available shares. if true, then action is route to targetbroker which depends on target broker
@@ -58,6 +63,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             //Add new rules for working/filled amount checks
             this.ruleSet.AddRule(ruleIsNotExpired);
             this.ruleSet.AddRule(ruleIsExpired);
+            this.ruleSet.AddRule(ruleIsFilled500);
             ruleIsNotExpired.AddRule(ruleNeedsRouting);
             ruleNeedsRouting.AddRule(ruleIsLNExchange);
             ruleNeedsRouting.AddRule(ruleIsUSExchange);
@@ -96,6 +102,11 @@ namespace com.bloomberg.samples.rulemsx.test {
             System.Console.WriteLine("...done.");
             System.Console.WriteLine("RuleMSXTest running...");
 
+        }
+
+        public void Stop()
+        {
+            this.rmsx.Stop();
         }
 
         public void processNotification(EasyMSXNotification notification) {
@@ -151,6 +162,10 @@ namespace com.bloomberg.samples.rulemsx.test {
             isin.SetDataPointSource(new RefDataDataPoint("ID_ISIN", o.field("EMSX_TICKER").value()));
             if (show) System.Console.WriteLine("New DataPoint added : " + isin.GetName());
 
+            DataPoint notified = rmsxTest.addDataPoint("Notified");
+            notified.SetDataPointSource(new DynamicBoolDataPoint("Notified", false));
+            if (show) System.Console.WriteLine("New DataPoint added : " + notified.GetName());
+
             if (show) System.Console.WriteLine("Adding order secuity to EasyMKT...");
             Security sec = emkt.securities.Get(o.field("EMSX_TICKER").value());
 
@@ -169,11 +184,9 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             DataPoint price = rmsxTest.addDataPoint("NewPrice");
             price.SetDataPointSource(new CustomCompoundDataPoint(margin, lastPrice));
-            price.AddDependency(margin);
-            price.AddDependency(lastPrice);
             if (show) System.Console.WriteLine("New DataPoint added : " + price.GetName());
 
-            this.ruleSet.execute(rmsxTest);
+            this.ruleSet.Execute(rmsxTest);
         }
 
 
@@ -184,6 +197,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             internal EMSXFieldDataPoint(EMSXField source) {
                 this.source = source;
                 source.addNotificationHandler(this);
+               
             }
             public override object GetValue()
             {
@@ -192,14 +206,14 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             public void processNotification(EasyMSXNotification notification) {
 
-                System.Console.WriteLine("Notification event: " + this.source.name() + " on " + getDataPoint().GetDataSet().getName());
+               // System.Console.WriteLine("Notification event: " + this.source.name() + " on " + getDataPoint().GetDataSet().getName());
 
                 try {
                     //System.Console.WriteLine("Category: " + notification.category.ToString());
                     //System.Console.WriteLine("Type: " + notification.type.ToString());
                     foreach (EasyMSXFieldChange fc in notification.getFieldChanges())
                     {
-                        System.Console.WriteLine("Name: " + fc.field.name() + "\tOld: " + fc.oldValue + "\tNew: " + fc.newValue);
+                        //System.Console.WriteLine("Name: " + fc.field.name() + "\tOld: " + fc.oldValue + "\tNew: " + fc.newValue);
                     }
                 }
                 catch (Exception ex) {
@@ -253,7 +267,7 @@ namespace com.bloomberg.samples.rulemsx.test {
 
                 if (notification.type == com.bloomberg.mktdata.samples.Notification.NotificationType.FIELD) {
                     this.value = notification.GetFieldChanges()[0].newValue;
-                    System.Console.WriteLine("Update for " + this.security.GetName() + ": " + this.fieldName + "=" + this.value);
+                    //System.Console.WriteLine("Update for " + this.security.GetName() + ": " + this.fieldName + "=" + this.value);
                 }
                 this.SetStale();
             }
@@ -295,6 +309,30 @@ namespace com.bloomberg.samples.rulemsx.test {
                 return value;
             }
 
+        }
+
+        class DynamicBoolDataPoint : DataPointSource
+        {
+
+            private bool value;
+
+            internal DynamicBoolDataPoint(string name, bool initial)
+            {
+                this.value = initial;
+            }
+
+            public override object GetValue()
+            {
+                return value;
+            }
+
+            public void setValue(bool val)
+            {
+
+                Console.WriteLine("Setting notified status to true");
+                this.value = val;
+                SetStale();
+            }
         }
 
         class StringEqualityRule : RuleEvaluator {
@@ -348,6 +386,30 @@ namespace com.bloomberg.samples.rulemsx.test {
                 if(status.Equals("NEW") || status.Equals("INIT_PAINT") || status.Equals("WORKING") || status.Equals("ASSIGN"))
                 {
                     if (workingAmount + filledAmount < amount) return true;
+                }
+                return false;
+            }
+        }
+
+        class IsFilled500Rule : RuleEvaluator
+        {
+
+            internal IsFilled500Rule() {
+                addDependantDataPointName("Filled");
+            }
+
+            public override bool Evaluate(DataSet dataSet)
+            {
+                int filledAmount = Convert.ToInt32(dataSet.getDataPoint("Filled").GetSource().GetValue().ToString());
+
+                if (filledAmount >= 500) {
+                    DataPointSource dps = dataSet.getDataPoint("Notified").GetSource();
+                    System.Console.WriteLine("Testing current value (bool): " + dps.GetValue().ToString() + "(" + Convert.ToBoolean(dps.GetValue()).ToString() + ")");
+                    if(!(bool)dps.GetValue()) {
+                        DynamicBoolDataPoint p = (DynamicBoolDataPoint)dps;
+                        p.setValue(true);
+                        return true;
+                    }
                 }
                 return false;
             }
