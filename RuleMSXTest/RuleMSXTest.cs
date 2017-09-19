@@ -40,7 +40,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             System.Console.WriteLine("RuleMSXTest starting...");
             System.Console.WriteLine("Instantiating RuleMSX...");
 
-            LogRmsx.logLevel = LogRmsx.LogLevels.DETAILED;
+            LogRmsx.logLevel = LogRmsx.LogLevels.NONE;
 
             this.rmsx = new RuleMSX();
             
@@ -93,6 +93,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             {
                 this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
                 this.emsx.orders.addNotificationHandler(this);
+                // add start() to EasyMSX...I think. Investigate! (Would allow adding notification handlers to top level, to Orders and to Routes objects before the data was loaded.
                 foreach (Order o in this.emsx.orders) parseOrder(o);
             }
             catch (Exception ex)
@@ -112,7 +113,8 @@ namespace com.bloomberg.samples.rulemsx.test {
         public void processNotification(EasyMSXNotification notification) {
 
             if (notification.category == EasyMSXNotification.NotificationCategory.ORDER) {
-                parseOrder(notification.getOrder());
+                //if(notification.type == EasyMSXNotification.NotificationType.NEW || notification.type == EasyMSXNotification.NotificationType.INITIALPAINT)
+                    parseOrder(notification.getOrder());
             }
         }
 
