@@ -63,7 +63,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             //Add new rules for working/filled amount checks
             this.ruleSet.AddRule(ruleIsNotExpired);
             this.ruleSet.AddRule(ruleIsExpired);
-            this.ruleSet.AddRule(ruleIsFilled500);
+            //this.ruleSet.AddRule(ruleIsFilled500);
             ruleIsNotExpired.AddRule(ruleNeedsRouting);
             ruleNeedsRouting.AddRule(ruleIsLNExchange);
             ruleNeedsRouting.AddRule(ruleIsUSExchange);
@@ -91,16 +91,22 @@ namespace com.bloomberg.samples.rulemsx.test {
             LogEmsx.logLevel = LogEmsx.LogLevels.NONE;
             try
             {
-                this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
+                this.emsx = new EasyMSX(EasyMSX.Environment.PRODUCTION);
+
+                System.Console.WriteLine("EasyMSX instantiated. Adding notification handler.");
+
                 this.emsx.orders.addNotificationHandler(this);
-                // add start() to EasyMSX...I think. Investigate! (Would allow adding notification handlers to top level, to Orders and to Routes objects before the data was loaded.
-                foreach (Order o in this.emsx.orders) parseOrder(o);
+
+                System.Console.WriteLine("Starting EasyMSX");
+
+                this.emsx.start();
+
             }
             catch (Exception ex)
             {
                 System.Console.WriteLine(ex);
             }
-            System.Console.WriteLine("...done.");
+            System.Console.WriteLine("EasyMSX started.");
             System.Console.WriteLine("RuleMSXTest running...");
 
         }
@@ -113,7 +119,8 @@ namespace com.bloomberg.samples.rulemsx.test {
         public void processNotification(EasyMSXNotification notification) {
 
             if (notification.category == EasyMSXNotification.NotificationCategory.ORDER) {
-                //if(notification.type == EasyMSXNotification.NotificationType.NEW || notification.type == EasyMSXNotification.NotificationType.INITIALPAINT)
+                if (notification.type == EasyMSXNotification.NotificationType.NEW || notification.type == EasyMSXNotification.NotificationType.INITIALPAINT)
+                    System.Console.WriteLine("EasyMSX Event (NEW/INITPAINT): " + notification.getOrder().field("EMSX_SEQUENCE").value());
                     parseOrder(notification.getOrder());
             }
         }
@@ -198,6 +205,7 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             internal EMSXFieldDataPoint(EMSXField source) {
                 this.source = source;
+                System.Console.WriteLine("Adding field notification handler for field: " + source.name());
                 source.addNotificationHandler(this);
                
             }
@@ -211,11 +219,10 @@ namespace com.bloomberg.samples.rulemsx.test {
                // System.Console.WriteLine("Notification event: " + this.source.name() + " on " + getDataPoint().GetDataSet().getName());
 
                 try {
-                    //System.Console.WriteLine("Category: " + notification.category.ToString());
-                    //System.Console.WriteLine("Type: " + notification.type.ToString());
+                    System.Console.WriteLine("Category: " + notification.category.ToString() + "\tType: " + notification.type.ToString() + "\tOrder: " + notification.getOrder().field("EMSX_SEQUENCE").value());
                     foreach (EasyMSXFieldChange fc in notification.getFieldChanges())
                     {
-                        //System.Console.WriteLine("Name: " + fc.field.name() + "\tOld: " + fc.oldValue + "\tNew: " + fc.newValue);
+                        System.Console.WriteLine("\tName: " + fc.field.name() + "\tOld: " + fc.oldValue + "\tNew: " + fc.newValue);
                     }
                 }
                 catch (Exception ex) {
@@ -316,7 +323,7 @@ namespace com.bloomberg.samples.rulemsx.test {
         class DynamicBoolDataPoint : DataPointSource
         {
 
-            private bool value;
+            private volatile bool value;
 
             internal DynamicBoolDataPoint(string name, bool initial)
             {
@@ -333,7 +340,8 @@ namespace com.bloomberg.samples.rulemsx.test {
 
                 Console.WriteLine("Setting notified status to true");
                 this.value = val;
-                SetStale();
+                Console.WriteLine("notified status :" + this.value.ToString());
+                this.SetStale();
             }
         }
 
@@ -406,11 +414,16 @@ namespace com.bloomberg.samples.rulemsx.test {
 
                 if (filledAmount >= 500) {
                     DataPointSource dps = dataSet.getDataPoint("Notified").GetSource();
-                    System.Console.WriteLine("Testing current value (bool): " + dps.GetValue().ToString() + "(" + Convert.ToBoolean(dps.GetValue()).ToString() + ")");
-                    if(!(bool)dps.GetValue()) {
-                        DynamicBoolDataPoint p = (DynamicBoolDataPoint)dps;
-                        p.setValue(true);
-                        return true;
+                    lock(dps)
+                    {
+                        bool v = Convert.ToBoolean(dps.GetValue());
+                        System.Console.WriteLine("Testing DataSet: " + dataSet.getName() + ":Notified current value (bool): " + dps.GetValue().ToString() + "(" + v.ToString() + ")");
+                        if (!v)
+                        {
+                            DynamicBoolDataPoint p = (DynamicBoolDataPoint)dps;
+                            p.setValue(true);
+                            return true;
+                        }
                     }
                 }
                 return false;
