@@ -48,14 +48,14 @@ namespace com.bloomberg.samples.rulemsx.test {
             this.ruleSet = rmsx.createRuleSet("TestRules");
 
             Rule ruleIsNotExpired = new Rule("IsNotExpired", new StringInequalityRule("OrderStatus", "EXPIRED"));
-            Rule ruleIsExpired = new Rule("IsExpired", new StringEqualityRule("OrderStatus", "EXPIRED"), new SendAdditionalSignal("Ignoring Order - EXPIRED"));
+            Rule ruleIsExpired = new Rule("IsExpired", new StringEqualityRule("OrderStatus", "EXPIRED"), rmsx.createAction("SendIgnoringSignal",new SendAdditionalSignal("Ignoring Order - EXPIRED")));
             Rule ruleNeedsRouting = new Rule("NeedsRouting", new NeedsRoutingRule());
-            Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), new RouteToBroker(this, "BB"));
+            Rule ruleIsLNExchange = new Rule("IsLNExchange", new StringEqualityRule("Exchange", "LN"), rmsx.createAction("RouteToBrokerBB", new RouteToBroker(this, "BB")));
             Rule ruleIsUSExchange = new Rule("IsUSExchange", new StringEqualityRule("Exchange", "US"));
-            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), new RouteToBroker(this, "BMTB"));
-            ruleIsIBM.AddAction(new SendAdditionalSignal("This is IBM!!"));
-            Rule ruleIsMSFT = new Rule("IsMSFT", new StringEqualityRule("Ticker", "MSFT US Equity"), new SendAdditionalSignal("Not Routing as would be rejected"));
-            Rule ruleIsFilled500 = new Rule("IsFilled500", new IsFilled500Rule(), new SendAdditionalSignal("Order is filled to 500 or more."));
+            Rule ruleIsIBM = new Rule("IsIBM", new StringEqualityRule("Ticker", "IBM US Equity"), rmsx.createAction("RouteToBrokerEFIX", new RouteToBroker(this, "EFIX")));
+            ruleIsIBM.AddAction(rmsx.createAction("SendIBMSignal", new SendAdditionalSignal("This is IBM!!")));
+            Rule ruleIsMSFT = new Rule("IsMSFT", new StringEqualityRule("Ticker", "MSFT US Equity"), rmsx.createAction("RejectedSignal", new SendAdditionalSignal("Not Routing as would be rejected")));
+            Rule ruleIsFilled500 = new Rule("IsFilled500", new IsFilled500Rule(), rmsx.createAction("Signal500filled", new SendAdditionalSignal("Order is filled to 500 or more.")));
 
             // Maybe add code so that rather than RouteToBroker("BB") we create a new datapoint "TargetBroker", set it's value to BB.
             // Then add a new rule that checks if there are available shares. if true, then action is route to targetbroker which depends on target broker
@@ -71,6 +71,9 @@ namespace com.bloomberg.samples.rulemsx.test {
             ruleIsUSExchange.AddRule(ruleIsMSFT);
 
             System.Console.WriteLine("...done.");
+
+            System.Console.WriteLine(ruleSet.report());
+
             System.Console.WriteLine("Instantiating EasyMKT...");
 
             this.emkt = new EasyMKT();
@@ -91,7 +94,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             LogEmsx.logLevel = LogEmsx.LogLevels.NONE;
             try
             {
-                this.emsx = new EasyMSX(EasyMSX.Environment.PRODUCTION);
+                this.emsx = new EasyMSX(EasyMSX.Environment.BETA);
 
                 System.Console.WriteLine("EasyMSX instantiated. Adding notification handler.");
 
@@ -120,8 +123,10 @@ namespace com.bloomberg.samples.rulemsx.test {
 
             if (notification.category == EasyMSXNotification.NotificationCategory.ORDER) {
                 if (notification.type == EasyMSXNotification.NotificationType.NEW || notification.type == EasyMSXNotification.NotificationType.INITIALPAINT)
+                {
                     System.Console.WriteLine("EasyMSX Event (NEW/INITPAINT): " + notification.getOrder().field("EMSX_SEQUENCE").value());
                     parseOrder(notification.getOrder());
+                }
             }
         }
 
@@ -207,8 +212,8 @@ namespace com.bloomberg.samples.rulemsx.test {
                 this.source = source;
                 System.Console.WriteLine("Adding field notification handler for field: " + source.name());
                 source.addNotificationHandler(this);
-               
             }
+
             public override object GetValue()
             {
                 return this.source.value().ToString();
@@ -430,7 +435,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             }
         }
 
-        class RouteToBroker : RuleAction, MessageHandler {
+        class RouteToBroker : ActionExecutor, MessageHandler {
 
             private string brokerCode;
             private RuleMSXTest ruleMSXTest;
@@ -472,7 +477,7 @@ namespace com.bloomberg.samples.rulemsx.test {
             }
         }
 
-        class SendAdditionalSignal : RuleAction {
+        class SendAdditionalSignal : ActionExecutor {
 
             private String signal;
             internal SendAdditionalSignal(String signal) {
